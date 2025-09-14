@@ -35,28 +35,19 @@ async def fetch_radio_metadata():
 
 async def update_bot_presence():
     """Update bot Rich Presence"""
-    if is_playing:
-        activity = discord.Activity(
-            type=discord.ActivityType.listening,
-            name=f"{current_song}",
-            details=f"WSM 650 AM",
-            state=f"👥 {listener_count} listeners"
-        )
-    else:
-        activity = discord.Activity(
-            type=discord.ActivityType.listening,
-            name="WSM 650 AM",
-            details="Radio Station",
-            state="Standby"
-        )
+    activity = discord.Activity(
+        type=discord.ActivityType.listening,
+        name=f"{current_song}",
+        details=f"WSM 650 AM",
+        state=f"👥 {listener_count} listeners"
+    )
     await bot.change_presence(activity=activity)
 
 @tasks.loop(seconds=30)
 async def periodic_update():
     """Periodically update radio information"""
-    if is_playing:
-        await fetch_radio_metadata()
-        await update_bot_presence()
+    await fetch_radio_metadata()
+    await update_bot_presence()
 
 @bot.event
 async def on_ready():
