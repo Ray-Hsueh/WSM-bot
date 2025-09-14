@@ -91,12 +91,7 @@ async def play_wsm(interaction: discord.Interaction):
     await interaction.response.send_message("🔄 Connecting and playing radio...")
     
     try:
-        ffmpeg_path = os.path.join(os.getcwd(), 'ffmpeg-master-latest-win64-gpl', 'bin', 'ffmpeg.exe')
-        
-        if os.path.exists(ffmpeg_path):
-            source = discord.FFmpegPCMAudio(RADIO_STREAM_URL, executable=ffmpeg_path)
-        else:
-            source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
+        source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
             
         voice_client.play(source)
         
