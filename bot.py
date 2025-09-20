@@ -60,8 +60,30 @@ async def on_ready():
     except Exception as e:
         print(f'Error syncing slash commands: {e}')
     
-    periodic_update.start()
+    await fetch_radio_metadata()
     await update_bot_presence()
+    periodic_update.start()
+    
+    for guild in bot.guilds:
+        voice_client = discord.utils.get(bot.voice_clients, guild=guild)
+        if voice_client and voice_client.is_connected():
+            print(f"Reconnecting to voice channel in {guild.name}")
+            try:
+                source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
+                voice_client.play(source)
+                global is_playing
+                is_playing = True
+                print(f"Resumed playing in {guild.name}")
+                
+                channel = voice_client.channel
+                if channel:
+                    try:
+                        await channel.send("🔄 **Bot restarted** - Automatically resumed playing WSM 650 AM!")
+                    except Exception as e:
+                        print(f"Could not send message to {channel.name}: {e}")
+                        
+            except Exception as e:
+                print(f"Error resuming playback in {guild.name}: {e}")
 
 @bot.tree.command(name="play", description="Play WSM 650 AM radio")
 async def play_wsm(interaction: discord.Interaction):
@@ -167,6 +189,10 @@ async def help_radio(interaction: discord.Interaction):
 @bot.tree.command(name="info", description="Show current playback information")
 async def info(interaction: discord.Interaction):
     await fetch_radio_metadata()
+    
+    start_time = interaction.created_at.timestamp()
+    latency = round(bot.latency * 1000)
+    
     embed = discord.Embed(
         title="📻 WSM 650 AM Current Playback Info",
         color=0x00ff00
@@ -185,6 +211,16 @@ async def info(interaction: discord.Interaction):
         name="📡 Playback Status",
         value="Playing" if is_playing else "Not Playing",
         inline=True
+    )
+    embed.add_field(
+        name="🖥️ Server Info",
+        value=f"Hosted on Hetzner AX162-R dedicated server\n📍 Helsinki, Finland\n⚡ {latency}ms latency",
+        inline=False
+    )
+    embed.add_field(
+        name="⭐ Support Us",
+        value="If you're enjoying WSM 650 AM Discord bot, please consider leaving a review on Top.gg!\nhttps://top.gg/bot/1416695100519616532#reviews",
+        inline=False
     )
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
