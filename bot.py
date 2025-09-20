@@ -3,10 +3,22 @@ from discord.ext import commands, tasks
 import os
 import aiohttp
 import json
+import logging
+from datetime import datetime
 from dotenv import load_dotenv
 from config import RADIO_STREAM_URL
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 intents = discord.Intents.default()
 
@@ -27,9 +39,9 @@ async def fetch_radio_metadata():
                     source = data.get('icestats', {}).get('source', {})
                     current_song = source.get('title', 'WSM 650 AM')
                     listener_count = source.get('listeners', 0)
-                    print(f"Currently playing: {current_song} | Listeners: {listener_count}")
+                    logger.info(f"Currently playing: {current_song} | Listeners: {listener_count}")
     except Exception as e:
-        print(f"Error fetching radio metadata: {e}")
+        logger.error(f"Error fetching radio metadata: {e}")
         current_song = "WSM 650 AM"
         listener_count = 0
 
@@ -51,14 +63,14 @@ async def periodic_update():
 
 @bot.event
 async def on_ready():
-    print(f'Bot {bot.user} has successfully logged in!')
-    print('------')
+    logger.info(f'Bot {bot.user} has successfully logged in!')
+    logger.info('------')
     
     try:
         synced = await bot.tree.sync()
-        print(f'Synced {len(synced)} slash commands')
+        logger.info(f'Synced {len(synced)} slash commands')
     except Exception as e:
-        print(f'Error syncing slash commands: {e}')
+        logger.error(f'Error syncing slash commands: {e}')
     
     await fetch_radio_metadata()
     await update_bot_presence()
@@ -67,23 +79,23 @@ async def on_ready():
     for guild in bot.guilds:
         voice_client = discord.utils.get(bot.voice_clients, guild=guild)
         if voice_client and voice_client.is_connected():
-            print(f"Reconnecting to voice channel in {guild.name}")
+            logger.info(f"Reconnecting to voice channel in {guild.name}")
             try:
                 source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
                 voice_client.play(source)
                 global is_playing
                 is_playing = True
-                print(f"Resumed playing in {guild.name}")
+                logger.info(f"Resumed playing in {guild.name}")
                 
                 channel = voice_client.channel
                 if channel:
                     try:
                         await channel.send("🔄 **Bot restarted** - Automatically resumed playing WSM 650 AM!")
                     except Exception as e:
-                        print(f"Could not send message to {channel.name}: {e}")
+                        logger.error(f"Could not send message to {channel.name}: {e}")
                         
             except Exception as e:
-                print(f"Error resuming playback in {guild.name}: {e}")
+                logger.error(f"Error resuming playback in {guild.name}: {e}")
 
 @bot.tree.command(name="play", description="Play WSM 650 AM radio")
 async def play_wsm(interaction: discord.Interaction):
@@ -120,7 +132,7 @@ async def play_wsm(interaction: discord.Interaction):
             await interaction.edit_original_response(content="❌ FFmpeg not found")
         else:
             await interaction.edit_original_response(content=f"Error playing stream: {e}")
-        print(f"Error playing stream: {e}")
+        logger.error(f"Error playing stream: {e}")
 
 @bot.tree.command(name="stop", description="Stop playing and leave voice channel")
 async def stop(interaction: discord.Interaction):
@@ -227,6 +239,7 @@ async def info(interaction: discord.Interaction):
 if __name__ == "__main__":
     BOT_TOKEN = os.getenv('DISCORD_TOKEN')
     if not BOT_TOKEN:
-        print("Error: Please set DISCORD_TOKEN in .env file!")
+        logger.error("Error: Please set DISCORD_TOKEN in .env file!")
     else:
+        logger.info("Starting WSM 650 AM Radio Bot...")
         bot.run(BOT_TOKEN)
