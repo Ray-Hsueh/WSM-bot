@@ -75,27 +75,6 @@ async def on_ready():
     await fetch_radio_metadata()
     await update_bot_presence()
     periodic_update.start()
-    
-    for guild in bot.guilds:
-        voice_client = discord.utils.get(bot.voice_clients, guild=guild)
-        if voice_client and voice_client.is_connected():
-            logger.info(f"Reconnecting to voice channel in {guild.name}")
-            try:
-                source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
-                voice_client.play(source)
-                global is_playing
-                is_playing = True
-                logger.info(f"Resumed playing in {guild.name}")
-                
-                channel = voice_client.channel
-                if channel:
-                    try:
-                        await channel.send("🔄 **Bot restarted** - Automatically resumed playing WSM 650 AM!")
-                    except Exception as e:
-                        logger.error(f"Could not send message to {channel.name}: {e}")
-                        
-            except Exception as e:
-                logger.error(f"Error resuming playback in {guild.name}: {e}")
 
 @bot.tree.command(name="play", description="Play WSM 650 AM radio")
 async def play_wsm(interaction: discord.Interaction):
