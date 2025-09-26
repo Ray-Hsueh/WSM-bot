@@ -27,10 +27,11 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 current_song = "WSM 650 AM"
 listener_count = 0
 is_playing = False
+api_connection_failed = False
 
 async def fetch_radio_metadata():
     """Fetch WSM 650 AM metadata"""
-    global current_song, listener_count
+    global current_song, listener_count, api_connection_failed
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get('http://stream01048.westreamradio.com/status-json.xsl') as response:
@@ -39,20 +40,29 @@ async def fetch_radio_metadata():
                     source = data.get('icestats', {}).get('source', {})
                     current_song = source.get('title', 'WSM 650 AM')
                     listener_count = source.get('listeners', 0)
-                    logger.info(f"Currently playing: {current_song} | Listeners: {listener_count}")
+                    api_connection_failed = False
     except Exception as e:
         logger.error(f"Error fetching radio metadata: {e}")
         current_song = "WSM 650 AM"
         listener_count = 0
+        api_connection_failed = True
 
 async def update_bot_presence():
     """Update bot Rich Presence"""
-    activity = discord.Activity(
-        type=discord.ActivityType.listening,
-        name=f"{current_song}",
-        details=f"WSM 650 AM",
-        state=f"👥 {listener_count} listeners"
-    )
+    if api_connection_failed:
+        activity = discord.Activity(
+            type=discord.ActivityType.listening,
+            name="WSM 650 AM",
+            details="Radio streaming is temporarily unavailable",
+            state="🌐 This is a website issue, not bot issue"
+        )
+    else:
+        activity = discord.Activity(
+            type=discord.ActivityType.listening,
+            name=f"{current_song}",
+            details=f"WSM 650 AM",
+            state=f"👥 {listener_count} listeners"
+        )
     await bot.change_presence(activity=activity)
 
 @tasks.loop(seconds=30)
