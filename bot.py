@@ -54,7 +54,7 @@ async def update_bot_presence():
             type=discord.ActivityType.listening,
             name="WSM 650 AM",
             details="Radio streaming is temporarily unavailable",
-            state="🌐 This is a website issue, not bot issue"
+            state="🌐 Radio streaming is temporarily unavailable"
         )
     else:
         activity = discord.Activity(
