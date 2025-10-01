@@ -28,23 +28,76 @@ current_song = "WSM 650 AM"
 listener_count = 0
 is_playing = False
 api_connection_failed = False
+radio_status = {}
 
 async def fetch_radio_metadata():
-    """Fetch WSM 650 AM metadata"""
-    global current_song, listener_count, api_connection_failed
+    """Fetch WSM 650 AM metadata from Icecast status endpoint and cache details"""
+    global current_song, listener_count, api_connection_failed, radio_status
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get('http://stream01048.westreamradio.com/status-json.xsl') as response:
                 if response.status == 200:
                     data = await response.json()
-                    source = data.get('icestats', {}).get('source', {})
-                    current_song = source.get('title', 'WSM 650 AM')
-                    listener_count = source.get('listeners', 0)
+                    icestats = data.get('icestats', {}) or {}
+                    source = icestats.get('source', {})
+                    if isinstance(source, list) and source:
+                        preferred = None
+                        for item in source:
+                            listenurl = item.get('listenurl', '') or ''
+                            name = item.get('server_name', '') or ''
+                            if 'wsm-am-mp3' in listenurl or 'WSM-AM' in name:
+                                preferred = item
+                                break
+                        source = preferred or source[0]
+
+                    audio_info = source.get('audio_info', '') or ''
+                    bitrate_kbps = None
+                    for part in audio_info.split(','):
+                        part = part.strip()
+                        if part.startswith('bitrate='):
+                            try:
+                                bitrate_kbps = int(part.split('=', 1)[1])
+                            except Exception:
+                                bitrate_kbps = None
+
+                    radio_status = {
+                        'icestats': {
+                            'admin': icestats.get('admin'),
+                            'host': icestats.get('host'),
+                            'location': icestats.get('location'),
+                            'server_id': icestats.get('server_id'),
+                            'server_start': icestats.get('server_start'),
+                            'server_start_iso8601': icestats.get('server_start_iso8601'),
+                            'source': {
+                                'audio_info': source.get('audio_info'),
+                                'bitrate_kbps': bitrate_kbps,
+                                'genre': source.get('genre'),
+                                'listener_peak': source.get('listener_peak'),
+                                'listeners': source.get('listeners'),
+                                'listenurl': source.get('listenurl'),
+                                'server_description': source.get('server_description'),
+                                'server_name': source.get('server_name'),
+                                'server_type': source.get('server_type'),
+                                'server_url': source.get('server_url'),
+                                'stream_start': source.get('stream_start'),
+                                'stream_start_iso8601': source.get('stream_start_iso8601'),
+                                'title': source.get('title'),
+                                'yp_currently_playing': source.get('yp_currently_playing')
+                            }
+                        }
+                    }
+
+                    preferred_title = source.get('yp_currently_playing') or source.get('title') or 'WSM 650 AM'
+                    current_song = preferred_title
+                    listener_count = source.get('listeners', 0) or 0
                     api_connection_failed = False
+                else:
+                    raise RuntimeError(f"HTTP {response.status}")
     except Exception as e:
         logger.error(f"Error fetching radio metadata: {e}")
         current_song = "WSM 650 AM"
         listener_count = 0
+        radio_status = {}
         api_connection_failed = True
 
 async def update_bot_presence():
@@ -185,9 +238,14 @@ async def help_radio(interaction: discord.Interaction):
         value="Show this help message",
         inline=False
     )
+    embed.add_field(
+        name="/info",
+        value="Show current station info",
+        inline=False
+    )
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
-@bot.tree.command(name="info", description="Show current playback information")
+@bot.tree.command(name="info", description="Show current station info")
 async def info(interaction: discord.Interaction):
     await fetch_radio_metadata()
     
@@ -195,7 +253,8 @@ async def info(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     
     embed = discord.Embed(
-        title="📻 WSM 650 AM Current Playback Info",
+        title="📻 WSM 650 AM — Now Playing",
+        description="Live track and station status",
         color=0x00ff00
     )
     embed.add_field(
@@ -209,8 +268,13 @@ async def info(interaction: discord.Interaction):
         inline=True
     )
     embed.add_field(
-        name="📡 Playback Status",
-        value="Playing" if is_playing else "Not Playing",
+        name="🎵 Title",
+        value=f"{radio_status.get('icestats', {}).get('source', {}).get('title', 'N/A')}",
+        inline=True
+    )
+    embed.add_field(
+        name="🎼 Genre",
+        value=f"{radio_status.get('icestats', {}).get('source', {}).get('genre', 'N/A')}",
         inline=True
     )
     embed.add_field(
