@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from config import RADIO_STREAM_URL
+import asyncio
 
 load_dotenv()
 
@@ -149,7 +150,12 @@ async def play_wsm(interaction: discord.Interaction):
     voice_client = discord.utils.get(bot.voice_clients, guild=interaction.guild)
 
     if voice_client is None:
-        await voice_channel.connect()
+        try:
+            await voice_channel.connect(timeout=20.0, reconnect=True)
+        except Exception as e:
+            await interaction.response.send_message("❌ Failed to connect to the voice channel (timeout). Please try again.", ephemeral=True)
+            logger.error(f"Failed to connect to voice: {e}")
+            return
         voice_client = discord.utils.get(bot.voice_clients, guild=interaction.guild)
 
     if voice_client.is_playing():
@@ -169,6 +175,9 @@ async def play_wsm(interaction: discord.Interaction):
         
         await interaction.edit_original_response(content=f'▶️ Now playing WSM 650 AM in **{voice_channel.name}**')
         
+    except asyncio.TimeoutError:
+        await interaction.edit_original_response(content="❌ Voice connection timed out. Please try again or switch a region.")
+        logger.error("Voice connect/play timed out")
     except Exception as e:
         if "ffmpeg was not found" in str(e):
             await interaction.edit_original_response(content="❌ FFmpeg not found")
@@ -294,5 +303,11 @@ if __name__ == "__main__":
     if not BOT_TOKEN:
         logger.error("Error: Please set DISCORD_TOKEN in .env file!")
     else:
+        try:
+            if not discord.opus.is_loaded():
+                discord.opus.load_opus('opus')
+                logger.info("Loaded Opus library")
+        except Exception as e:
+            logger.warning(f"Opus may not be loaded: {e}")
         logger.info("Starting WSM 650 AM Radio Bot...")
         bot.run(BOT_TOKEN)
