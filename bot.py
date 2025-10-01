@@ -30,6 +30,11 @@ listener_count = 0
 is_playing = False
 api_connection_failed = False
 radio_status = {}
+ADMIN_ID_ENV = os.getenv('ADMIN_ID')
+try:
+    ADMIN_ID = int(ADMIN_ID_ENV) if ADMIN_ID_ENV else 0
+except Exception:
+    ADMIN_ID = 0
 
 async def fetch_radio_metadata():
     """Fetch WSM 650 AM metadata from Icecast status endpoint and cache details"""
@@ -124,6 +129,38 @@ async def periodic_update():
     """Periodically update radio information"""
     await fetch_radio_metadata()
     await update_bot_presence()
+
+@bot.event
+async def on_message(message: discord.Message):
+    if message.guild is not None or message.author.bot:
+        return
+    if ADMIN_ID and message.author.id == ADMIN_ID:
+        content = (message.content or '').strip().lower()
+        if content == 'server':
+            if not bot.guilds:
+                await message.channel.send('No servers joined.')
+                return
+            lines = [f"{g.name} — {g.id}" for g in bot.guilds]
+            text = "\n".join(lines)
+            if len(text) > 1900:
+                chunks = []
+                current = []
+                length = 0
+                for line in lines:
+                    if length + len(line) + 1 > 1900:
+                        chunks.append("\n".join(current))
+                        current = [line]
+                        length = len(line) + 1
+                    else:
+                        current.append(line)
+                        length += len(line) + 1
+                if current:
+                    chunks.append("\n".join(current))
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+            else:
+                await message.channel.send(text)
+    return
 
 @bot.event
 async def on_ready():
