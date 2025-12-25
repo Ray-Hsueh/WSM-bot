@@ -188,21 +188,41 @@ async def play_wsm(interaction: discord.Interaction):
 
     if voice_client is None:
         try:
+            await interaction.response.send_message("🔄 Connecting to voice channel...")
             await voice_channel.connect(timeout=20.0, reconnect=True)
-        except Exception as e:
-            await interaction.response.send_message("❌ Failed to connect to the voice channel (timeout). Please try again.", ephemeral=True)
-            logger.error(f"Failed to connect to voice: {e}")
+            voice_client = discord.utils.get(bot.voice_clients, guild=interaction.guild)
+        except IndexError as e:
+            error_msg = (
+                "**Voice Connection Failed: Encryption Mode Error**\n\n"
+                "This error occurs when Discord's voice server cannot negotiate encryption.\n\n"
+                "**Possible solutions:**\n"
+                "1. Try switching your server's voice region (Server Settings → Overview → Server Region)\n"
+                "2. Try again in a few minutes (Discord voice server issue)\n"
+                "3. If using a VPN, try disconnecting it\n"
+                "4. Try rejoining the voice channel\n\n"
+                f"Technical details: {str(e)}"
+            )
+            await interaction.edit_original_response(content=error_msg)
+            logger.error(f"Voice encryption negotiation failed (empty modes list): {e}")
             return
-        voice_client = discord.utils.get(bot.voice_clients, guild=interaction.guild)
+        except asyncio.TimeoutError:
+            await interaction.edit_original_response(content="❌ Failed to connect to the voice channel (timeout). Please try again.")
+            logger.error("Voice connection timed out")
+            return
+        except Exception as e:
+            error_type = type(e).__name__
+            await interaction.edit_original_response(content=f"❌ Failed to connect to voice: {error_type}. Please try again.")
+            logger.error(f"Failed to connect to voice: {error_type}: {e}", exc_info=True)
+            return
 
-    if voice_client.is_playing():
-        voice_client.stop()
-
-    await interaction.response.send_message("🔄 Connecting and playing radio...")
+    if not interaction.response.is_done():
+        await interaction.response.send_message("🔄 Connecting and playing radio...")
     
     try:
-        source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
+        if voice_client.is_playing():
+            voice_client.stop()
             
+        source = discord.FFmpegPCMAudio(RADIO_STREAM_URL)
         voice_client.play(source)
         
         global is_playing
