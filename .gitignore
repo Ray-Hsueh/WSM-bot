@@ -3,3 +3,4 @@ ffmpeg.zip
 __pycache__/
 .env
 bot.log
+run.sh

@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 import os
+import sys
 import aiohttp
 import json
 import logging
@@ -160,6 +161,9 @@ async def on_message(message: discord.Message):
                     await message.channel.send(chunk)
             else:
                 await message.channel.send(text)
+        elif content == 'restart':
+            await message.channel.send("收到！正在更新程式碼並重啟...")
+            sys.exit(0)
     return
 
 @bot.event
@@ -176,6 +180,39 @@ async def on_ready():
     await fetch_radio_metadata()
     await update_bot_presence()
     periodic_update.start()
+
+cached_server_info = None
+
+async def get_server_info():
+    global cached_server_info
+    if cached_server_info:
+        return cached_server_info
+    
+    location = "Unknown"
+    provider = "Unknown Server"
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get('http://ip-api.com/json/?lang=zh-TW') as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get('status') == 'success':
+                        country = data.get('country', '')
+                        city = data.get('city', '')
+                        if country and city:
+                            location = f"{city}, {country}"
+                        elif country:
+                            location = country
+                        elif city:
+                            location = city
+                        
+                        provider = data.get('org') or data.get('isp') or provider
+                        
+    except Exception:
+        pass
+        
+    cached_server_info = {'location': location, 'provider': provider}
+    return cached_server_info
 
 @bot.tree.command(name="play", description="Play WSM 650 AM radio")
 async def play_wsm(interaction: discord.Interaction):
@@ -314,6 +351,7 @@ async def help_radio(interaction: discord.Interaction):
 @bot.tree.command(name="info", description="Show current station info")
 async def info(interaction: discord.Interaction):
     await fetch_radio_metadata()
+    server_info = await get_server_info()
     
     start_time = interaction.created_at.timestamp()
     latency = round(bot.latency * 1000)
@@ -345,7 +383,7 @@ async def info(interaction: discord.Interaction):
     )
     embed.add_field(
         name="🖥️ Server Info",
-        value=f"Hosted on Hetzner AX162-R dedicated server\n📍 Helsinki, Finland\n⚡ {latency}ms latency",
+        value=f"Hosted on {server_info['provider']}\n📍 {server_info['location']}\n⚡ {latency}ms latency",
         inline=False
     )
     embed.add_field(
