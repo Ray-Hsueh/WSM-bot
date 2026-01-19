@@ -133,11 +133,20 @@ async def periodic_update():
 
 @bot.event
 async def on_message(message: discord.Message):
-    if message.guild is not None or message.author.bot:
+    if message.author == bot.user:
         return
-    if ADMIN_ID and message.author.id == ADMIN_ID:
+
+    if isinstance(message.channel, discord.DMChannel):
+        if message.author.id != ADMIN_ID:
+            return
+
         content = (message.content or '').strip().lower()
-        if content == 'server':
+        
+        if content == 'restart':
+            await message.channel.send("Received! Updating code and restarting...")
+            sys.exit(0)
+            
+        elif content == 'server':
             if not bot.guilds:
                 await message.channel.send('No servers joined.')
                 return
@@ -161,10 +170,6 @@ async def on_message(message: discord.Message):
                     await message.channel.send(chunk)
             else:
                 await message.channel.send(text)
-        elif content == 'restart':
-            await message.channel.send("收到！正在更新程式碼並重啟...")
-            sys.exit(0)
-    return
 
 @bot.event
 async def on_ready():
